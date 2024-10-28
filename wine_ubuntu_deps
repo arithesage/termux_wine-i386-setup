@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export WINE_DEPS=""
+
