@@ -1,0 +1,76 @@
+#!/bin/bash
+
+function usage
+{
+    echo -n "Usage: $(basename ${0}) <wine version> <wine version number>"
+    echo    "<distro name> <distro version>"
+    echo ""
+    echo "Example: $(basename ${0}) staging 9.20 debian bookworm"
+    echo
+}
+
+
+function abort
+{
+    REASON=$1
+
+    if ! [ "$REASON" == "" ];
+    then
+        echo "$REASON"
+    fi
+
+    echo ""
+
+    exit 1
+}
+
+
+if [ "$1" == "" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ];
+then
+    usage
+    abort
+fi
+
+
+
+
+WINE_VERSION="$1"
+WINE_VERSION_NUM="$2"    
+DISTRO="$3"
+DISTRO_VERSION="$4"
+ARCH="i386"
+
+PACKAGE_1="wine-${WINE_VERSION}_${WINE_VERSION_NUM}~${DISTRO_VERSION}"
+PACKAGE_1+="-1_${ARCH}.deb"
+
+PACKAGE_2="wine-${WINE_VERSION}-${ARCH}_${WINE_VERSION_NUM}"
+PACKAGE_2+="~${DISTRO_VERSION}-1_${ARCH}.deb"
+
+BASE_URL="https://dl.winehq.org/wine-builds/${DISTRO}/dists"
+BASE_URL+="/${DISTRO_VERSION}/main/binary-${ARCH}"
+
+
+echo "Downloading ${PACKAGE_1} ..."
+echo "============================"
+echo ""
+
+wget ${BASE_URL}/${PACKAGE_1}
+    
+if ! [ "$?" == "0" ];
+then
+    abort "Failed downloading '${PACKAGE_1}'"
+fi
+
+
+echo "Downloading ${PACKAGE_2} ..."
+echo "============================"
+echo ""
+
+wget ${BASE_URL}/${PACKAGE_2}
+
+if ! [ "$?" == "0" ];
+then
+    abort "Failed downloading '${PACKAGE_2}'"
+fi
+
+

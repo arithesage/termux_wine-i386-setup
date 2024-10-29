@@ -1,0 +1,239 @@
+#!/bin/bash
+
+function abort
+{
+    REASON=$1
+    
+    echo "${REASON}"
+    echo ""
+    exit 1
+}
+
+
+function check_if_box86_is_present
+{
+    if ! [ -f "/usr/local/bin/box86" ] && ! [ -f "/usr/local/bin/boxify" ];
+    then
+        abort "Wine (32 bits) needs Box86 installed first."
+    fi
+}
+
+
+function check_if_wine_was_downloaded
+{
+    if ! [ -f "$HOME/.downloaded_wine_package_1" ] || \
+       ! [ -f "$HOME/.downloaded_wine_package_2" ];
+    then
+        abort "Wine needed packages failed downloading.\n. Cannot continue."
+    fi
+}
+
+
+function check_if_wine_is_installed
+{
+    if [ -f "$HOME/.wine-i386_installed" ];
+    then
+        abort "Wine (32 bits) is already installed."
+    fi
+}
+
+
+function download_wine
+{
+    WINE_VERSION="$1"
+    WINE_VERSION_NUM="$2"    
+    DISTRO="$3"
+    DISTRO_VERSION="$4"
+    ARCH="$5"
+
+    PACKAGE_1="wine-${WINE_VERSION}_${WINE_VERSION_NUM}~${DISTRO_VERSION}"
+    PACKAGE_1+="-1_${ARCH}.deb"
+
+    PACKAGE_2="wine-${WINE_VERSION}-${ARCH}_${WINE_VERSION_NUM}"
+    PACKAGE_2+="~${DISTRO_VERSION}-1_${ARCH}.deb"
+
+    BASE_URL="https://dl.winehq.org/wine-builds/${DISTRO}/dists"
+    BASE_URL="/${DISTRO_VERSION}/main/binary-${ARCH}"
+
+    URL_1="https://dl.winehq.org/wine-builds/${DISTRO}/dists"
+    URL_1+="/${DISTRO_VERSION}/main/binary-${ARCH}"
+    URL_1+="/${PACKAGE_1}"
+
+    echo "Downloading ${PACKAGE_1} ..."
+    echo "============================"
+    echo ""
+
+    wget ${BASE_URL}/${PACKAGE_1}
+    
+    if ! [ "$?" == "0" ];
+    then
+        abort "Failed downloading '${PACKAGE_1}'"
+    fi
+
+    echo "${PACKAGE_1}" > "$HOME/.downloaded_wine_package_1"
+
+    echo "Downloading ${PACKAGE_2} ..."
+    echo "============================"
+    echo ""
+
+    wget ${BASE_URL}/${PACKAGE_2}
+
+    if ! [ "$?" == "0" ];
+    then
+        abort "Failed downloading '${PACKAGE_2}'"
+    fi
+
+    echo "${PACKAGE_2}" > "$HOME/.downloaded_wine_package_2"
+}
+
+
+function install_dependencies
+{
+    echo "Installing dependencies..."
+    echo "=========================="
+    echo ""
+
+    dpkg --print-foreign-architectures | grep armhf > /dev/null
+
+    if ! [ "$?" == "0" ];
+    then
+        dpkg --add-architecture armhf
+
+        if ! [ "$?" == "0" ];
+        then
+            abort "Failed trying to add armhf architecture to dpkg."
+        fi
+
+        apt-get update
+
+        echo "- Added armhf architecture."
+        echo ""
+    fi
+
+    source $HOME/.wine_debian_deps
+
+    apt-get install -y $WINE_DEPS
+
+    if ! [ "$?" == "0" ];
+    then
+        abort "Some dependencies failed installing."
+    fi
+}
+
+
+function install_wine
+{
+    echo ""
+    echo "Installing WINE..."
+    echo "=================="
+
+    dpkg --print-foreign-architectures | grep i386 > /dev/null
+
+    if ! [ "$?" == "0" ];
+    then
+        dpkg --add-architecture i386
+
+        if ! [ "$?" == "0" ];
+        then
+            abort "Failed trying to add i386 architecture to dpkg."
+        fi
+
+        echo "- Added i386 architecture."
+
+#        dpkg --add-architecture amd64
+#
+#        if ! [ "$?" == "0" ];
+#        then
+#            failed
+#        fi
+#
+#        echo "- Added amd64 architecture."
+    fi
+
+    # We are going to install WINE manually (because Box86 needs it), but
+    # i install the GPG key anyways because i don't know if it is needed.
+    if ! [ -f /etc/apt/keyrings/winehq-archive.key ];
+    then
+        if ! [ -d /etc/apt/keyrings ];
+        then
+            mkdir /etc/apt/keyrings
+        fi
+
+        wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+
+        if ! [ "$?" == "0" ];
+        then
+            abort "Failed adding GPG key to keyrings."
+        fi
+
+        echo "- Added winehq GPG key to keyrings."
+    fi    
+
+    PACKAGE_1=$(cat "$HOME/.downloaded_wine_package_1")
+    PACKAGE_2=$(cat "$HOME/.downloaded_wine_package_2")
+
+    dpkg-deb -x $PACKAGE_1 "$HOME/wine"
+
+    if ! [ "$?" == "0" ];
+    then
+        abort "Failed extracting '$PACKAGE_1'."
+    fi
+
+    dpkg-deb -x $PACKAGE_2 "$HOME/wine"
+
+    if ! [ "$?" == "0" ];
+    then
+        abort "Failed extracting '$PACKAGE_1'."
+    fi
+
+#    dpkg-deb -x wine-staging_9.20~bookworm-1_amd64.deb wine
+#    dpkg-deb -x wine-staging-amd64_9.20~bookworm-1_amd64.deb wine
+
+    if ! [ -d "/opt" ];
+    then
+        mkdir /opt
+    fi
+
+    ln -s "$HOME/wine/opt/wine-staging" "/opt/wine-staging"
+    ln -s "$HOME/wine/usr/share/doc/wine-staging" "/usr/share/doc/wine-staging"
+    ln -s "$HOME/wine/usr/share/doc/wine-staging-i386" "/usr/share/doc/wine-staging-i386"
+#    ln -s "$HOME/wine/usr/share/doc/wine-staging-amd64" "/usr/share/doc/wine-staging-amd64"
+    ln -s "$HOME/wine/usr/share/lintian/overrides/wine-staging-i386" "/usr/share/lintian/overrides/wine-staging-i386"
+#    ln -s "$HOME/wine/usr/share/lintian/overrides/wine-staging-amd64" "/usr/share/lintian/overrides/wine-staging-amd64"
+
+    boxify "/opt/wine-staging/bin/wine"
+    boxify "/opt/wine-staging/bin/wine64"
+    boxify "/opt/wine-staging/bin/wineboot"
+    boxify "/opt/wine-staging/bin/winecfg"
+    boxify "/opt/wine-staging/bin/wineserver"
+
+    touch "$HOME/.wine-i386_installed"
+
+    echo "========================="
+    echo "Wine (32 bits) installed."
+    echo "========================="
+    echo ""
+}
+
+
+
+
+if ! [ "$TERMUX_VERSION" == "" ];
+then
+    abort "This script is for Termux proot only."
+fi
+
+check_if_wine_is_installed
+
+if ! [ -f "/usr/lib/arm-linux-gnueabihf/libvkd3d.so.1" ];
+then
+    install_dependencies
+fi
+
+download_wine staging 9.20 debian bookworm i386
+
+check_if_wine_was_downloaded
+
+install_wine
+
+

@@ -1,0 +1,84 @@
+#!/bin/bash
+
+function usage
+{
+    echo -n "Usage: $(basename ${0}) <wine-staging_....deb>"
+    echo    "<wine-staging-i386_....deb>"
+    echo ""
+    echo "Example: $(basename ${0}) wine-staging_9.20~bookworm-1_i386.deb "
+    echo "         wine-staging-i386_9.20~bookworm-1_i386.deb"
+    echo ""
+    echo "This script will extract Wine and install it into your account"
+    echo ".local folder."
+    echo ""
+    echo "The packages can be in any order because both are going to be"
+    echo "extracted and their contents copied to ~/.local/wine"
+    echo ""
+}
+
+
+function abort
+{
+    REASON=$1
+
+    if ! [ "$REASON" == "" ];
+    then
+        echo "$REASON"
+    fi
+
+    echo ""
+
+    exit 1
+}
+
+
+if [ "$1" == "" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ];
+then
+    usage
+    abort
+fi
+
+
+
+
+ARCH=$(uname -m)
+PACKAGE_1=$1
+PACKAGE_2=$2
+
+
+if [[ $ARCH == armv* ]]  && ! [ -f "/usr/local/bin/box86" ];
+then
+    echo "Box86 wasn't found in /usr/local/bin and it is needed for running"
+    echo "Wine in ARM devices."
+
+    abort
+fi
+
+
+echo ""
+echo "Installing WINE..."
+echo "=================="
+echo ""
+
+dpkg-deb -x $PACKAGE_1 "$HOME/.local/wine"
+
+if ! [ "$?" == "0" ];
+then
+    abort "Failed extracting '$PACKAGE_1'."
+fi
+
+
+dpkg-deb -x $PACKAGE_2 "$HOME/.local/wine"
+
+if ! [ "$?" == "0" ];
+then
+    abort "Failed extracting '$PACKAGE_2'."
+fi
+
+
+echo ""
+echo "Finished."
+echo ""
+
+
+

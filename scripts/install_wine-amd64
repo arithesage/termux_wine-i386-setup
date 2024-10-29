@@ -1,0 +1,85 @@
+#!/bin/bash
+
+function abort
+{
+    REASON=$1
+
+    if ! [ "$REASON" == "" ];
+    then
+        echo "$REASON"
+    fi
+
+    echo ""
+
+    exit 1
+}
+
+
+if ! [ "$USER" == "root" ];
+then
+    SUDO="sudo"
+fi
+
+
+if ! [ "$SUDO" == "" ];
+then
+    $SUDO -v
+
+    if ! [ "$?" == "0" ];
+    then
+        abort "You need to be root or have sudo permissions."
+    fi
+fi
+
+
+LOCAL_WINE=$HOME/.local/wine
+
+if ! [ -d "$LOCAL_WINE" ];
+then
+    abort "No Wine installation found in ${LOCAL_WINE}."
+fi
+
+
+WINE_VERSION=$(cat "$LOCAL_WINE/.wine_version")
+
+if [ "$WINE_VERSION" == "" ];
+then
+    echo "No ${LOCAL_WINE}/.wine_version file found."
+    abort "Unable to identify Wine version."
+fi
+
+
+if ! [ -d "$LOCAL_WINE/usr/share/doc/${WINE_VERSION}-amd64" ];
+then
+    abort "No Wine (64 bits) files detected. Cannot continue."
+fi
+
+
+echo "Integrating local wine installlation in the system..."
+echo ""
+
+$SUDO ln -sf "$LOCAL_WINE/opt/${WINE_VERSION}" "/opt/${WINE_VERSION}"
+$SUDO ln -sf "$LOCAL_WINE/usr/share/doc/${WINE_VERSION}" "/usr/share/doc/${WINE_VERSION}"
+$SUDO ln -s "$LOCAL_WINE/usr/share/doc/${WINE_VERSION}-amd64" "/usr/share/doc/${WINE_VERSION}-amd64"
+$SUDO ln -s "$HOME/wine/usr/share/lintian/overrides/${WINE_VERSION}-amd64" "/usr/share/lintian/overrides/${WINE_VERSION}-amd64"
+
+
+if ! [ -f "/opt/${WINE_VERSION}/bin/wine64" ];
+then
+    abort "/opt/${WINE_VERSION}/bin/wine64 not found. Failed creating symlinks."
+fi
+
+
+if [ -f "/usr/local/bin/box64" ];
+then
+    echo "Box64 detected."
+    echo "Creating script for executing wine64 in ARM devices..."
+
+    boxify "/opt/${WINE_VERSION}/bin/wine64"
+fi
+
+
+echo "All done."
+echo ""
+
+
